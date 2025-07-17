@@ -1,0 +1,19 @@
+# Google C/C++ Code Style Settings
+
+Language: Cpp
+BasedOnStyle: Google
+Standard: c++20
+UseTab: Always
+IndentWidth: 8
+ColumnLimit: 180
+
+AllowShortIfStatementsOnASingleLine: false
+AlignAfterOpenBracket: AlwaysBreak
+AllowShortBlocksOnASingleLine: Empty
+AllowShortFunctionsOnASingleLine: InlineOnly
+AllowShortLoopsOnASingleLine: false
+AllowShortLambdasOnASingleLine: Empty
+
+InsertBraces: true
+ExperimentalAutoDetectBinPacking: true
+SortIncludes: false
