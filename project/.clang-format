@@ -17,3 +17,6 @@ AllowShortLambdasOnASingleLine: Empty
 InsertBraces: true
 ExperimentalAutoDetectBinPacking: true
 SortIncludes: false
+
+# Personal
+BreakBeforeBraces: Stroustrup

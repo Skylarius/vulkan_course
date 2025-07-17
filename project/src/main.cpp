@@ -1,17 +1,24 @@
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <gsl/gsl>
-#include <iostream>
+#include <GLFW/glfw3.h>
 
-int main(std::size_t argc, gsl::zstring* argv) {
-	gsl::span<gsl::zstring> arguments(argv, argc);
-	std::sort(arguments.begin(), arguments.end());
+#include <glfw_initialization.h>
 
-	gsl::not_null<gsl::zstring*> arguments_pointer_validated = argv;
+int main(std::size_t argc, gsl::zstring* argv)
+{
+	veng::GlfwInitialization _glfw; // resource acquisition in initialization
 
-	std::cout << "Hello World" << std::endl;
-	std::uint32_t count = 0;
-	std::size_t size = 12;
-	std::float_t f = 0.0f;
-	return 0;
+	gsl::not_null<GLFWwindow*> window = glfwCreateWindow(800, 600, "VulkanEngine", nullptr, nullptr);
+	gsl::final_action _cleanup_window([window]() {
+		glfwDestroyWindow(window);
+	});
+
+	while (!glfwWindowShouldClose(window))
+	{
+		glfwPollEvents();
+	}
+
+	return EXIT_SUCCESS;
 }
