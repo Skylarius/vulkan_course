@@ -1,22 +1,18 @@
-#include <cmath>
-#include <cstdint>
-#include <cstdlib>
-#include <gsl/gsl>
+#include <precomp.h>
 #include <GLFW/glfw3.h>
-
+#include <glfw_monitor.h>
 #include <glfw_initialization.h>
+#include <glfw_window.h>
 
 int main(std::size_t argc, gsl::zstring* argv)
 {
-	veng::GlfwInitialization _glfw; // resource acquisition in initialization
+	const veng::GlfwInitialization _glfw;  // resource acquisition in initialization
 
-	gsl::not_null<GLFWwindow*> window = glfwCreateWindow(800, 600, "VulkanEngine", nullptr, nullptr);
-	gsl::final_action _cleanup_window([window]() {
-		glfwDestroyWindow(window);
-	});
+	veng::Window window("VulkanEngine", {800, 600});
 
-	while (!glfwWindowShouldClose(window))
-	{
+	window.TryMoveToMonitor(0);
+
+	while (!window.ShouldClose()) {
 		glfwPollEvents();
 	}
 

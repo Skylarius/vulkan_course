@@ -37,7 +37,7 @@ file(GLOB_RECURSE VulkanEngineSources CONFIGURE_DEPENDS
 	"${CMAKE_CURRENT_SOURCE_DIR}/src/*.h"
 )
 
-add_executable(VulkanEngine src/main.cpp "src/glfw_initialization.h" "src/glfw_initialization.cpp")
+add_executable(VulkanEngine src/main.cpp "src/glfw_initialization.h" "src/glfw_initialization.cpp" "src/precomp.h" "src/glfw_monitor.h" "src/glfw_monitor.cpp" "src/glfw_window.h" "src/glfw_window.cpp")
 
 target_link_libraries(VulkanEngine PRIVATE Vulkan::Vulkan)
 target_link_libraries(VulkanEngine PRIVATE glm)
@@ -47,4 +47,7 @@ target_link_libraries(VulkanEngine PRIVATE Microsoft.GSL::GSL)
 target_include_directories(VulkanEngine PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
 target_compile_features(VulkanEngine PRIVATE cxx_std_20)
+
+target_precompile_headers(VulkanEngine PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/precomp.h")
+
 
