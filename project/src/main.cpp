@@ -3,6 +3,7 @@
 #include <glfw_monitor.h>
 #include <glfw_initialization.h>
 #include <glfw_window.h>
+#include <graphics.h>
 
 int main(std::size_t argc, gsl::zstring* argv)
 {
@@ -11,6 +12,8 @@ int main(std::size_t argc, gsl::zstring* argv)
 	veng::Window window("VulkanEngine", {800, 600});
 
 	window.TryMoveToMonitor(0);
+
+	veng::Graphics graphics(&window);
 
 	while (!window.ShouldClose()) {
 		glfwPollEvents();

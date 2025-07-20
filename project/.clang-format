@@ -13,9 +13,10 @@ AllowShortBlocksOnASingleLine: Empty
 AllowShortFunctionsOnASingleLine: InlineOnly
 AllowShortLoopsOnASingleLine: false
 AllowShortLambdasOnASingleLine: Empty
+AccessModifierOffset: 0
 
 InsertBraces: true
-ExperimentalAutoDetectBinPacking: true
+# ExperimentalAutoDetectBinPacking: true
 SortIncludes: false
 
 # Personal

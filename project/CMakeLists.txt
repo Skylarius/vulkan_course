@@ -32,17 +32,27 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(microsoft-gsl)
 
+FetchContent_Declare(
+	spdlog
+	GIT_REPOSITORY "https://github.com/gabime/spdlog.git"
+	GIT_TAG "v1.15.3"
+	GIT_SHALLOW TRUE
+)
+
+FetchContent_MakeAvailable(spdlog)
+
 file(GLOB_RECURSE VulkanEngineSources CONFIGURE_DEPENDS
 	"${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
 	"${CMAKE_CURRENT_SOURCE_DIR}/src/*.h"
 )
 
-add_executable(VulkanEngine src/main.cpp "src/glfw_initialization.h" "src/glfw_initialization.cpp" "src/precomp.h" "src/glfw_monitor.h" "src/glfw_monitor.cpp" "src/glfw_window.h" "src/glfw_window.cpp")
+add_executable(VulkanEngine src/main.cpp "src/glfw_initialization.h" "src/glfw_initialization.cpp" "src/precomp.h" "src/glfw_monitor.h" "src/glfw_monitor.cpp" "src/glfw_window.h" "src/glfw_window.cpp" "src/graphics.h" "src/graphics.cpp" "src/utilities.h" "src/utilities.cpp")
 
 target_link_libraries(VulkanEngine PRIVATE Vulkan::Vulkan)
 target_link_libraries(VulkanEngine PRIVATE glm)
 target_link_libraries(VulkanEngine PRIVATE glfw)
 target_link_libraries(VulkanEngine PRIVATE Microsoft.GSL::GSL)
+target_link_libraries(VulkanEngine PRIVATE spdlog)
 
 target_include_directories(VulkanEngine PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
