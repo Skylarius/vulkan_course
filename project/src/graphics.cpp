@@ -83,6 +83,23 @@ bool Graphics::AreAllLayersSupported(gsl::span<gsl::czstring> extensions)
 	return std::all_of(extensions.begin(), extensions.end(), std::bind_front(IsLayerSupported, supported_layers));
 }
 
+Graphics::QueueFamilyIndices Graphics::FindQueueFamilies(VkPhysicalDevice device)
+{
+	std::uint_fast32_t queue_family_count = 0;
+	vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, nullptr);
+	std::vector<VkQueueFamilyProperties> families(queue_family_count);
+	vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, families.data());
+
+	auto graphics_family_it = std::find_if(families.begin(), families.end(), [device](const VkQueueFamilyProperties& property) {
+		return property.queueFlags & (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_TRANSFER_BIT);
+	});
+
+	QueueFamilyIndices result;
+	result.graphics_family = graphics_family_it - families.begin();
+
+	return result;
+}
+
 void Graphics::SetupDebugMessenger()
 {
 	if (!validation_enabled_) {
@@ -168,6 +185,88 @@ bool IsLayerSupported(const gsl::span<VkLayerProperties> properties, gsl::czstri
 
 #pragma endregion
 
+#pragma region DEVICES_AND_QUEUES
+
+bool Graphics::IsDeviceSuitable(VkPhysicalDevice device)
+{
+	QueueFamilyIndices families = FindQueueFamilies(device);
+	return families.IsValid();
+}
+
+void Graphics::PickPhysicalDevice()
+{
+	std::vector<VkPhysicalDevice> devices = GetAvailableDevices();
+
+	std::erase_if(devices, std::not_fn(std::bind_front(&Graphics::IsDeviceSuitable, this)));
+
+	if (devices.empty())
+	{
+		spdlog::error("No physical devices");
+		std::exit(EXIT_FAILURE);
+	}
+
+	// score and order them...
+
+	physical_device_ = devices[0];
+
+}
+
+void Graphics::CreateLogicalDeviceAndQueues()
+{
+	QueueFamilyIndices picked_device_families = FindQueueFamilies(physical_device_);
+
+	if (!picked_device_families.IsValid()) {
+		std::exit(EXIT_FAILURE);
+	}
+
+	std::float_t queue_priority = 1.0f;
+
+	VkDeviceQueueCreateInfo queue_info = {};
+
+	queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	queue_info.queueFamilyIndex = picked_device_families.graphics_family.value();
+	queue_info.queueCount = 1;
+	queue_info.pQueuePriorities = &queue_priority;
+
+	VkPhysicalDeviceFeatures required_features = {};
+
+	VkDeviceCreateInfo device_info = {};
+
+	device_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	device_info.queueCreateInfoCount = 1;
+	device_info.pQueueCreateInfos = &queue_info;
+	device_info.pEnabledFeatures = &required_features;
+	device_info.enabledExtensionCount = 0;
+	device_info.enabledLayerCount = 0; //deprecated
+
+	VkResult result = vkCreateDevice(physical_device_, &device_info, nullptr, &logical_device_);
+
+	if (result != VK_SUCCESS)
+	{
+		std::exit(EXIT_FAILURE);
+	}
+
+	vkGetDeviceQueue(logical_device_, queue_info.queueFamilyIndex, 0, &graphics_queue_); 
+
+}
+
+std::vector<VkPhysicalDevice> Graphics::GetAvailableDevices()
+{
+	std::uint32_t devices_count;
+	vkEnumeratePhysicalDevices(instance_, &devices_count, nullptr);
+
+	if (devices_count == 0) {
+		return {};
+	}
+
+	std::vector<VkPhysicalDevice> devices(devices_count);
+	vkEnumeratePhysicalDevices(instance_, &devices_count, devices.data());
+
+	return devices;
+}
+
+#pragma endregion
+
 Graphics::Graphics(gsl::not_null<Window*> window) : window_(window)
 {
 #if !defined(NDEBUG)
@@ -178,6 +277,10 @@ Graphics::Graphics(gsl::not_null<Window*> window) : window_(window)
 
 Graphics::~Graphics()
 {
+	if (logical_device_ != nullptr)
+	{
+		vkDestroyDevice(logical_device_, nullptr);
+	}
 	if (instance_ != nullptr) {
 		if (debug_messenger_ != nullptr)
 		{
@@ -191,6 +294,8 @@ void Graphics::InitializeVulkan()
 {
 	CreateInstance();
 	SetupDebugMessenger();
+	PickPhysicalDevice();
+	CreateLogicalDeviceAndQueues();
 }
 
 void Graphics::CreateInstance()
