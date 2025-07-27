@@ -9,6 +9,7 @@ public:
 	~Window();
 
 	glm::ivec2 GetWindowSize() const;
+	glm::ivec2 GetFramebufferSize() const;
 
 	bool ShouldClose() const;
 

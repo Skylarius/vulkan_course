@@ -3,6 +3,7 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 #include <spdlog/spdlog.h>
+#include <set>
 
 #pragma region VK_FUNCTION_EXT_IMPL
 
@@ -31,6 +32,7 @@ VKAPI_ATTR void VKAPI_CALL vkDestroyDebugUtilsMessengerEXT(VkInstance instance, 
 #pragma endregion
 
 namespace veng {
+
 #pragma region VALIDATION_LAYERS
 static VKAPI_ATTR VkBool32 VKAPI_CALL ValidationCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type, const VkDebugUtilsMessengerCallbackDataEXT* callback_data, void* user_data)
@@ -97,7 +99,35 @@ Graphics::QueueFamilyIndices Graphics::FindQueueFamilies(VkPhysicalDevice device
 	QueueFamilyIndices result;
 	result.graphics_family = graphics_family_it - families.begin();
 
+	for (std::uint32_t i = 0; i < families.size(); i++) {
+		VkBool32 has_presentation_support = false;
+		vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface_, &has_presentation_support);
+		if (has_presentation_support) {
+			result.presentation_family = i;
+			break;
+		}
+	}
+
 	return result;
+}
+
+Graphics::SwapChainProperties Graphics::GetSwapChainProperties(VkPhysicalDevice device)
+{
+	SwapChainProperties properties;
+
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface_, &properties.capabilities);
+
+	std::uint32_t count;
+	vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface_, &count, nullptr);
+	properties.formats.resize(count);
+	vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface_, &count, properties.formats.data());
+
+	vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface_, &count, nullptr);
+	properties.present_modes.resize(count);
+	vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface_, &count, properties.present_modes.data());
+
+
+	return properties;
 }
 
 void Graphics::SetupDebugMessenger()
@@ -187,10 +217,26 @@ bool IsLayerSupported(const gsl::span<VkLayerProperties> properties, gsl::czstri
 
 #pragma region DEVICES_AND_QUEUES
 
+std::vector<VkExtensionProperties> Graphics::GetDeviceAvailableExtensions(VkPhysicalDevice device)
+{
+	std::uint32_t available_extensions_count;
+	vkEnumerateDeviceExtensionProperties(device, nullptr, &available_extensions_count, nullptr);
+	std::vector<VkExtensionProperties> available_extensions(available_extensions_count);
+	vkEnumerateDeviceExtensionProperties(device, nullptr, &available_extensions_count, available_extensions.data());
+	return available_extensions;
+}
+
+bool Graphics::AreAllDeviceExtensionsSupported(VkPhysicalDevice device)
+{
+	std::vector<VkExtensionProperties> available_extensions = GetDeviceAvailableExtensions(device);
+
+	return std::all_of(required_device_extensions_.begin(), required_device_extensions_.end(), std::bind_front(IsExtensionSupported, available_extensions));
+}
+
 bool Graphics::IsDeviceSuitable(VkPhysicalDevice device)
 {
 	QueueFamilyIndices families = FindQueueFamilies(device);
-	return families.IsValid();
+	return families.IsValid() && AreAllDeviceExtensionsSupported(device) && GetSwapChainProperties(device).IsValid();
 }
 
 void Graphics::PickPhysicalDevice()
@@ -199,8 +245,7 @@ void Graphics::PickPhysicalDevice()
 
 	std::erase_if(devices, std::not_fn(std::bind_front(&Graphics::IsDeviceSuitable, this)));
 
-	if (devices.empty())
-	{
+	if (devices.empty()) {
 		spdlog::error("No physical devices");
 		std::exit(EXIT_FAILURE);
 	}
@@ -208,7 +253,6 @@ void Graphics::PickPhysicalDevice()
 	// score and order them...
 
 	physical_device_ = devices[0];
-
 }
 
 void Graphics::CreateLogicalDeviceAndQueues()
@@ -219,35 +263,47 @@ void Graphics::CreateLogicalDeviceAndQueues()
 		std::exit(EXIT_FAILURE);
 	}
 
+	std::set<std::uint32_t> unique_queue_families = {
+		picked_device_families.graphics_family.value(),
+		picked_device_families.presentation_family.value()
+	};
+
 	std::float_t queue_priority = 1.0f;
 
-	VkDeviceQueueCreateInfo queue_info = {};
 
-	queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	queue_info.queueFamilyIndex = picked_device_families.graphics_family.value();
-	queue_info.queueCount = 1;
-	queue_info.pQueuePriorities = &queue_priority;
+	std::vector<VkDeviceQueueCreateInfo> queue_create_infos;
+	for (std::uint32_t unique_queue_family : unique_queue_families)
+	{
+		VkDeviceQueueCreateInfo queue_info = {};
+
+		queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		queue_info.queueFamilyIndex = unique_queue_family;
+		queue_info.queueCount = 1;
+		queue_info.pQueuePriorities = &queue_priority;
+		queue_create_infos.push_back(queue_info);
+	}
+
 
 	VkPhysicalDeviceFeatures required_features = {};
 
 	VkDeviceCreateInfo device_info = {};
 
 	device_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	device_info.queueCreateInfoCount = 1;
-	device_info.pQueueCreateInfos = &queue_info;
+	device_info.queueCreateInfoCount = queue_create_infos.size();
+	device_info.pQueueCreateInfos = queue_create_infos.data();
 	device_info.pEnabledFeatures = &required_features;
-	device_info.enabledExtensionCount = 0;
-	device_info.enabledLayerCount = 0; //deprecated
+	device_info.enabledExtensionCount = required_device_extensions_.size();
+	device_info.ppEnabledExtensionNames = required_device_extensions_.data();
+	device_info.enabledLayerCount = 0;  // deprecated
 
 	VkResult result = vkCreateDevice(physical_device_, &device_info, nullptr, &logical_device_);
 
-	if (result != VK_SUCCESS)
-	{
+	if (result != VK_SUCCESS) {
 		std::exit(EXIT_FAILURE);
 	}
 
-	vkGetDeviceQueue(logical_device_, queue_info.queueFamilyIndex, 0, &graphics_queue_); 
-
+	vkGetDeviceQueue(logical_device_, picked_device_families.graphics_family.value(), 0, &graphics_queue_);
+	vkGetDeviceQueue(logical_device_, picked_device_families.presentation_family.value(), 0, &presentation_queue_);
 }
 
 std::vector<VkPhysicalDevice> Graphics::GetAvailableDevices()
@@ -267,6 +323,93 @@ std::vector<VkPhysicalDevice> Graphics::GetAvailableDevices()
 
 #pragma endregion
 
+#pragma region PRESENTATION
+
+void Graphics::CreateSurface()
+{
+	VkResult result = glfwCreateWindowSurface(instance_, window_->GetHandle(), nullptr, &surface_);
+	if (result != VK_SUCCESS) {
+		std::exit(EXIT_FAILURE);
+	}
+}
+
+bool IsRgbaTypeFormat(const VkSurfaceFormatKHR& format_properties)
+{
+	return format_properties.format == VK_FORMAT_R8G8B8A8_SRGB || format_properties.format == VK_FORMAT_B8G8R8A8_SRGB;
+}
+
+bool IsSrgbColorSpace(const VkSurfaceFormatKHR& format_properties)
+{
+	return format_properties.colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR;
+}
+
+bool IsCorrectFormat(const VkSurfaceFormatKHR& format_properties)
+{
+	return IsRgbaTypeFormat(format_properties) && IsSrgbColorSpace(format_properties);
+}
+
+VkSurfaceFormatKHR Graphics::ChooseSwapSurfaceFormat(std::span<VkSurfaceFormatKHR> formats)
+{
+	if (formats.size() == 1 && formats[0].format == VK_FORMAT_UNDEFINED) {
+		return {VK_FORMAT_R8G8B8A8_SRGB, VK_COLORSPACE_SRGB_NONLINEAR_KHR};
+	}
+
+	auto it = std::find_if(formats.begin(), formats.end(), IsCorrectFormat);
+
+	if (it != formats.end())
+	{
+		return *it;
+	}
+
+	return formats[0];
+}
+
+bool IsMailboxPresentMode(const VkPresentModeKHR& mode)
+{
+	return mode == VK_PRESENT_MODE_MAILBOX_KHR;
+}
+
+VkPresentModeKHR Graphics::ChooseSwapPresentMode(std::span<VkPresentModeKHR> present_modes)
+{
+	if (std::any_of(present_modes.begin(), present_modes.end(), IsMailboxPresentMode)) {
+		return VK_PRESENT_MODE_MAILBOX_KHR;
+	}
+
+	return VK_PRESENT_MODE_FIFO_KHR;
+}
+VkExtent2D Graphics::ChooseSwapExtent(const VkSurfaceCapabilitiesKHR capabilities)
+{
+	constexpr std::uint32_t kInvalidSize = std::numeric_limits<std::uint32_t>::max();
+
+	if (capabilities.currentExtent.width != kInvalidSize)
+	{
+		return capabilities.currentExtent;
+	}
+	else {
+		glm::ivec2 size = window_->GetFramebufferSize();
+		VkExtent2D actual_extent = {
+			static_cast<std::uint32_t>(size.x),
+			static_cast<std::uint32_t>(size.y)
+		};
+
+		actual_extent.width = std::clamp(actual_extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+		actual_extent.height = std::clamp(actual_extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+
+		return actual_extent;
+	}
+}
+
+void Graphics::CreateSwapChain()
+{
+	SwapChainProperties properties = GetSwapChainProperties(physical_device_);
+
+	VkSurfaceFormatKHR surface_format = ChooseSwapSurfaceFormat(properties.formats);
+	VkPresentModeKHR present_mode = ChooseSwapPresentMode(properties.present_modes);
+	VkExtent2D extent = ChooseSwapExtent(properties.capabilities);
+}
+
+#pragma endregion
+
 Graphics::Graphics(gsl::not_null<Window*> window) : window_(window)
 {
 #if !defined(NDEBUG)
@@ -277,13 +420,14 @@ Graphics::Graphics(gsl::not_null<Window*> window) : window_(window)
 
 Graphics::~Graphics()
 {
-	if (logical_device_ != nullptr)
-	{
+	if (logical_device_ != nullptr) {
 		vkDestroyDevice(logical_device_, nullptr);
 	}
-	if (instance_ != nullptr) {
-		if (debug_messenger_ != nullptr)
-		{
+	if (instance_ != VK_NULL_HANDLE) {
+		if (surface_ != VK_NULL_HANDLE) {
+			vkDestroySurfaceKHR(instance_, surface_, nullptr);
+		}
+		if (debug_messenger_ != VK_NULL_HANDLE) {
 			vkDestroyDebugUtilsMessengerEXT(instance_, debug_messenger_, nullptr);
 		}
 		vkDestroyInstance(instance_, nullptr);
@@ -294,8 +438,10 @@ void Graphics::InitializeVulkan()
 {
 	CreateInstance();
 	SetupDebugMessenger();
+	CreateSurface();
 	PickPhysicalDevice();
 	CreateLogicalDeviceAndQueues();
+	CreateSwapChain();
 }
 
 void Graphics::CreateInstance()
@@ -342,6 +488,5 @@ void Graphics::CreateInstance()
 		std::exit(EXIT_FAILURE);
 	}
 }
-
 
 }  // namespace veng
