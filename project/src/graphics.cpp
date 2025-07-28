@@ -126,7 +126,6 @@ Graphics::SwapChainProperties Graphics::GetSwapChainProperties(VkPhysicalDevice 
 	properties.present_modes.resize(count);
 	vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface_, &count, properties.present_modes.data());
 
-
 	return properties;
 }
 
@@ -263,17 +262,12 @@ void Graphics::CreateLogicalDeviceAndQueues()
 		std::exit(EXIT_FAILURE);
 	}
 
-	std::set<std::uint32_t> unique_queue_families = {
-		picked_device_families.graphics_family.value(),
-		picked_device_families.presentation_family.value()
-	};
+	std::set<std::uint32_t> unique_queue_families = {picked_device_families.graphics_family.value(), picked_device_families.presentation_family.value()};
 
 	std::float_t queue_priority = 1.0f;
 
-
 	std::vector<VkDeviceQueueCreateInfo> queue_create_infos;
-	for (std::uint32_t unique_queue_family : unique_queue_families)
-	{
+	for (std::uint32_t unique_queue_family : unique_queue_families) {
 		VkDeviceQueueCreateInfo queue_info = {};
 
 		queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -282,7 +276,6 @@ void Graphics::CreateLogicalDeviceAndQueues()
 		queue_info.pQueuePriorities = &queue_priority;
 		queue_create_infos.push_back(queue_info);
 	}
-
 
 	VkPhysicalDeviceFeatures required_features = {};
 
@@ -356,8 +349,7 @@ VkSurfaceFormatKHR Graphics::ChooseSwapSurfaceFormat(std::span<VkSurfaceFormatKH
 
 	auto it = std::find_if(formats.begin(), formats.end(), IsCorrectFormat);
 
-	if (it != formats.end())
-	{
+	if (it != formats.end()) {
 		return *it;
 	}
 
@@ -381,16 +373,12 @@ VkExtent2D Graphics::ChooseSwapExtent(const VkSurfaceCapabilitiesKHR capabilitie
 {
 	constexpr std::uint32_t kInvalidSize = std::numeric_limits<std::uint32_t>::max();
 
-	if (capabilities.currentExtent.width != kInvalidSize)
-	{
+	if (capabilities.currentExtent.width != kInvalidSize) {
 		return capabilities.currentExtent;
 	}
 	else {
 		glm::ivec2 size = window_->GetFramebufferSize();
-		VkExtent2D actual_extent = {
-			static_cast<std::uint32_t>(size.x),
-			static_cast<std::uint32_t>(size.y)
-		};
+		VkExtent2D actual_extent = {static_cast<std::uint32_t>(size.x), static_cast<std::uint32_t>(size.y)};
 
 		actual_extent.width = std::clamp(actual_extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
 		actual_extent.height = std::clamp(actual_extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
@@ -399,13 +387,92 @@ VkExtent2D Graphics::ChooseSwapExtent(const VkSurfaceCapabilitiesKHR capabilitie
 	}
 }
 
+std::uint32_t Graphics::ChooseSwapImageCount(const VkSurfaceCapabilitiesKHR& capabilities)
+{
+	std::uint32_t image_count = capabilities.minImageCount + 1;
+	if (capabilities.minImageCount > 0 && capabilities.maxImageCount < image_count) {
+		return capabilities.maxImageCount;
+	}
+	return image_count;
+}
+
 void Graphics::CreateSwapChain()
 {
 	SwapChainProperties properties = GetSwapChainProperties(physical_device_);
 
-	VkSurfaceFormatKHR surface_format = ChooseSwapSurfaceFormat(properties.formats);
-	VkPresentModeKHR present_mode = ChooseSwapPresentMode(properties.present_modes);
-	VkExtent2D extent = ChooseSwapExtent(properties.capabilities);
+	surface_format_ = ChooseSwapSurfaceFormat(properties.formats);
+	present_mode_ = ChooseSwapPresentMode(properties.present_modes);
+	extent_ = ChooseSwapExtent(properties.capabilities);
+
+	std::uint32_t image_count = ChooseSwapImageCount(properties.capabilities);
+	VkSwapchainCreateInfoKHR info = {};
+	info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+	info.surface = surface_;
+	info.minImageCount = image_count;
+	info.imageFormat = surface_format_.format;
+	info.imageColorSpace = surface_format_.colorSpace;
+	info.imageExtent = extent_;
+	info.imageArrayLayers = 1;
+	info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	info.presentMode = present_mode_;
+	info.preTransform = properties.capabilities.currentTransform;
+	info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	info.clipped = VK_TRUE;
+	info.oldSwapchain = VK_NULL_HANDLE;
+
+	QueueFamilyIndices indices = FindQueueFamilies(physical_device_);
+
+	if (indices.graphics_family != indices.presentation_family) {
+		std::array<std::uint32_t, 2> family_indices = {indices.graphics_family.value(), indices.presentation_family.value()};
+
+		info.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+		info.queueFamilyIndexCount = family_indices.size();
+		info.pQueueFamilyIndices = family_indices.data();
+	}
+	else {
+		info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	}
+
+	VkResult result = vkCreateSwapchainKHR(logical_device_, &info, nullptr, &swap_chain_);
+
+	if (result != VK_SUCCESS)
+	{
+		std::exit(EXIT_FAILURE);
+	}
+	std::uint32_t actual_image_count;
+	vkGetSwapchainImagesKHR(logical_device_, swap_chain_, &actual_image_count, nullptr);
+	swap_chain_images_.resize(actual_image_count);
+	vkGetSwapchainImagesKHR(logical_device_, swap_chain_, &actual_image_count, swap_chain_images_.data());
+}
+
+void Graphics::CreateImageViews()
+{
+	swap_chain_image_views_.resize(swap_chain_images_.size());
+	std::vector<VkImageView>::iterator image_view_it = swap_chain_image_views_.begin();
+	for (VkImage image : swap_chain_images_)
+	{
+		VkImageViewCreateInfo info = {};
+		info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		info.image = image;
+		info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		info.format = surface_format_.format;
+		info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+		info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+		info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+		info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+		info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		info.subresourceRange.baseMipLevel = 0;
+		info.subresourceRange.levelCount = 1;
+		info.subresourceRange.baseArrayLayer = 0;
+		info.subresourceRange.layerCount = 1;
+		VkResult result = vkCreateImageView(logical_device_, &info, nullptr, &(*image_view_it));
+		if (result != VK_SUCCESS)
+		{
+			std::exit(EXIT_FAILURE);
+		}
+		std::next(image_view_it) /* ++ image_view_it */;
+
+	}
 }
 
 #pragma endregion
@@ -420,7 +487,17 @@ Graphics::Graphics(gsl::not_null<Window*> window) : window_(window)
 
 Graphics::~Graphics()
 {
-	if (logical_device_ != nullptr) {
+	if (logical_device_ != VK_NULL_HANDLE) {
+
+		for (VkImageView image_view : swap_chain_image_views_)
+		{
+			vkDestroyImageView(logical_device_, image_view, nullptr);
+		}
+
+		if (swap_chain_ != VK_NULL_HANDLE)
+		{
+			vkDestroySwapchainKHR(logical_device_, swap_chain_, nullptr);
+		}
 		vkDestroyDevice(logical_device_, nullptr);
 	}
 	if (instance_ != VK_NULL_HANDLE) {

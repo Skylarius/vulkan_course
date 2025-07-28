@@ -38,6 +38,7 @@ class Graphics {
 	void CreateLogicalDeviceAndQueues();
 	void CreateSurface();
 	void CreateSwapChain();
+	void CreateImageViews();
 	std::vector<gsl::czstring> GetRequiredInstanceExtensions();
 
 
@@ -58,6 +59,7 @@ class Graphics {
 	VkSurfaceFormatKHR ChooseSwapSurfaceFormat(std::span<VkSurfaceFormatKHR> formats);
 	VkPresentModeKHR ChooseSwapPresentMode(std::span<VkPresentModeKHR> modes);
 	VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR capabilities);
+	std::uint32_t ChooseSwapImageCount(const VkSurfaceCapabilitiesKHR& capabilities);
 
 	std::array<gsl::czstring, 1> required_device_extensions_ = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
@@ -71,6 +73,13 @@ class Graphics {
 	VkDebugUtilsMessengerEXT debug_messenger_;
 
 	VkSurfaceKHR surface_ = VK_NULL_HANDLE;
+	VkSwapchainKHR swap_chain_ = VK_NULL_HANDLE;
+	VkSurfaceFormatKHR surface_format_;
+	VkPresentModeKHR present_mode_;
+	VkExtent2D extent_;
+	std::vector<VkImage> swap_chain_images_;
+
+	std::vector<VkImageView> swap_chain_image_views_;
 
 	gsl::not_null<Window*> window_;
 	bool validation_enabled_ = false;
