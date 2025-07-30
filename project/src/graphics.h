@@ -39,6 +39,7 @@ class Graphics {
 	void CreateSurface();
 	void CreateSwapChain();
 	void CreateImageViews();
+	void CreateGraphicsPipeline();
 	std::vector<gsl::czstring> GetRequiredInstanceExtensions();
 
 
@@ -60,6 +61,8 @@ class Graphics {
 	VkPresentModeKHR ChooseSwapPresentMode(std::span<VkPresentModeKHR> modes);
 	VkExtent2D ChooseSwapExtent(const VkSurfaceCapabilitiesKHR capabilities);
 	std::uint32_t ChooseSwapImageCount(const VkSurfaceCapabilitiesKHR& capabilities);
+
+	VkShaderModule CreateShaderModule(gsl::span<std::uint8_t> buffer);
 
 	std::array<gsl::czstring, 1> required_device_extensions_ = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
