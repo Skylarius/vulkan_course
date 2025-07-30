@@ -1,6 +1,14 @@
 #version 450
+#include "common.glsl"
+
+vec2 hardcoded_position[3] = vec2[](
+    vec2(0.0, -0.5),
+    vec2(0.5, 0.5),
+    vec2(-0.5, 0.5)
+);
 
 void main() 
 {
-    gl_Position = vec4(0.0, 0.0, 0.0, 1.0);
+    vec2 current_position = hardcoded_position[gl_VertexIndex];
+    gl_Position = vec4(current_position, 0.0, 1.0);
 }
