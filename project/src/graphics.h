@@ -29,11 +29,10 @@ class Graphics {
 	};
 
 	void InitializeVulkan();
+
+	// Initialization
 	void CreateInstance();
 	void SetupDebugMessenger();
-
-
-	// Device
 	void PickPhysicalDevice();
 	void CreateLogicalDeviceAndQueues();
 	void CreateSurface();
@@ -41,6 +40,16 @@ class Graphics {
 	void CreateImageViews();
 	void CreateRenderPass();
 	void CreateGraphicsPipeline();
+	void CreateFramebuffers();
+	void CreateCommandPool();
+	void CreateCommandBuffer();
+
+	// Rendering
+
+	void BeginCommands(std::uint32_t current_image_index);
+	void RenderTriangle();
+	void EndCommands();
+
 	std::vector<gsl::czstring> GetRequiredInstanceExtensions();
 
 
@@ -64,6 +73,8 @@ class Graphics {
 	std::uint32_t ChooseSwapImageCount(const VkSurfaceCapabilitiesKHR& capabilities);
 
 	VkShaderModule CreateShaderModule(gsl::span<std::uint8_t> buffer);
+	VkViewport GetViewport();
+	VkRect2D GetScissor();
 
 	std::array<gsl::czstring, 1> required_device_extensions_ = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
@@ -83,10 +94,14 @@ class Graphics {
 	VkExtent2D extent_;
 	std::vector<VkImage> swap_chain_images_;
 	std::vector<VkImageView> swap_chain_image_views_;
+	std::vector<VkFramebuffer> swap_chain_framebuffers_;
 
 	VkPipelineLayout pipeline_layout_ = VK_NULL_HANDLE;
 	VkRenderPass render_pass_ = VK_NULL_HANDLE;
 	VkPipeline pipeline_ = VK_NULL_HANDLE;
+
+	VkCommandPool command_pool_ = VK_NULL_HANDLE;
+	VkCommandBuffer command_buffer_ = VK_NULL_HANDLE;
 
 	gsl::not_null<Window*> window_;
 	bool validation_enabled_ = false;

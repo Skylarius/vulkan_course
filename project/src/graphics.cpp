@@ -496,6 +496,26 @@ VkShaderModule Graphics::CreateShaderModule(gsl::span<std::uint8_t> buffer)
 	return shader_module;
 }
 
+VkViewport Graphics::GetViewport()
+{
+	VkViewport viewport = {};
+	viewport.x = 0.0f;
+	viewport.y = 0.0f;
+	viewport.width = static_cast<std::float_t>(extent_.width);
+	viewport.height = static_cast<std::float_t>(extent_.height);
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+	return viewport;
+}
+
+VkRect2D Graphics::GetScissor()
+{
+	VkRect2D scissor = {};
+	scissor.offset = {0, 0};
+	scissor.extent = extent_;
+	return scissor;
+}
+
 void Graphics::CreateGraphicsPipeline()
 {
 	// Loading shaders
@@ -538,17 +558,9 @@ void Graphics::CreateGraphicsPipeline()
 	dynamic_state_info.dynamicStateCount = dynamic_states.size();
 	dynamic_state_info.pDynamicStates = dynamic_states.data();
 
-	VkViewport viewport = {};
-	viewport.x = 0.0f;
-	viewport.y = 0.0f;
-	viewport.width = static_cast<std::float_t>(extent_.width);
-	viewport.height = static_cast<std::float_t>(extent_.height);
-	viewport.minDepth = 0.0f;
-	viewport.maxDepth = 1.0f;
+	VkViewport viewport = GetViewport();
 
-	VkRect2D scissor = {};
-	scissor.offset = {0, 0};
-	scissor.extent = extent_;
+	VkRect2D scissor = GetScissor();
 
 	VkPipelineViewportStateCreateInfo viewport_state_info = {};
 	viewport_state_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -665,6 +677,106 @@ void Graphics::CreateRenderPass()
 
 #pragma endregion
 
+#pragma region
+
+void Graphics::CreateFramebuffers()
+{
+	swap_chain_framebuffers_.resize(swap_chain_image_views_.size());
+
+	for (std::uint32_t i = 0; i < swap_chain_framebuffers_.size(); i++) {
+		VkFramebufferCreateInfo info = {};
+		info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		info.renderPass = render_pass_;
+		info.attachmentCount = 1;
+		info.pAttachments = swap_chain_image_views_.data();
+		info.width = extent_.width;
+		info.height = extent_.height;
+		info.layers = 1;
+
+		VkResult result = vkCreateFramebuffer(logical_device_, &info, nullptr, &swap_chain_framebuffers_[i]);
+
+		if (result != VK_SUCCESS) {
+			std::exit(EXIT_FAILURE);
+		}
+	}
+}
+
+void Graphics::CreateCommandPool()
+{
+	QueueFamilyIndices indices = FindQueueFamilies(physical_device_);
+	VkCommandPoolCreateInfo command_pool_info = {};
+	command_pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	command_pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+	command_pool_info.queueFamilyIndex = indices.graphics_family.value();
+
+	VkResult result = vkCreateCommandPool(logical_device_, &command_pool_info, nullptr, &command_pool_);
+
+	if (result != VK_SUCCESS) {
+		std::exit(EXIT_FAILURE);
+	}
+}
+
+void Graphics::CreateCommandBuffer()
+{
+	VkCommandBufferAllocateInfo command_buffer_info = {};
+	command_buffer_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	command_buffer_info.commandPool = command_pool_;
+	command_buffer_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	command_buffer_info.commandBufferCount = 1;
+
+	VkResult result = vkAllocateCommandBuffers(logical_device_, &command_buffer_info, &command_buffer_);
+	if (result != VK_SUCCESS) {
+		std::exit(EXIT_FAILURE);
+	}
+}
+
+void Graphics::BeginCommands(std::uint32_t current_image_index)
+{
+	VkCommandBufferBeginInfo begin_info = {};
+	begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+	VkResult begin_state_result = vkBeginCommandBuffer(command_buffer_, &begin_info);
+	if (begin_state_result != VK_SUCCESS) {
+		throw std::runtime_error("Failed to begin command buffer");
+	}
+
+	VkRenderPassBeginInfo render_pass_begin_info = {};
+	render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	render_pass_begin_info.renderPass = render_pass_;
+	render_pass_begin_info.framebuffer = swap_chain_framebuffers_[current_image_index];
+	render_pass_begin_info.renderArea.offset = {0, 0};
+	render_pass_begin_info.renderArea.extent = extent_;
+
+	VkClearValue clear_color = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+	render_pass_begin_info.clearValueCount = 1;
+	render_pass_begin_info.pClearValues = &clear_color;
+	vkCmdBeginRenderPass(command_buffer_, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+
+	vkCmdBindPipeline(command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
+	VkViewport viewport = GetViewport();
+	VkRect2D scissor = GetScissor();
+
+	vkCmdSetViewport(command_buffer_, 0, 1, &viewport);
+	vkCmdSetScissor(command_buffer_, 0, 1, &scissor);
+}
+
+void Graphics::RenderTriangle()
+{
+	vkCmdDraw(command_buffer_, 3, 1, 0, 0);
+}
+
+void Graphics::EndCommands()
+{
+	vkCmdEndRenderPass(command_buffer_);
+	VkResult end_buffer_result = vkEndCommandBuffer(command_buffer_);
+	if (end_buffer_result != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to record command buffer!");
+	}
+}
+
+#pragma endregion
+
 Graphics::Graphics(gsl::not_null<Window*> window) : window_(window)
 {
 #if !defined(NDEBUG)
@@ -676,6 +788,16 @@ Graphics::Graphics(gsl::not_null<Window*> window) : window_(window)
 Graphics::~Graphics()
 {
 	if (logical_device_ != VK_NULL_HANDLE) {
+		// we don't destroy command buffer as it's not created but allocated, so smartly deallocated at termination
+
+		if (command_pool_ != VK_NULL_HANDLE) {
+			vkDestroyCommandPool(logical_device_, command_pool_, nullptr);
+		}
+
+		for (VkFramebuffer frame_buffer : swap_chain_framebuffers_) {
+			vkDestroyFramebuffer(logical_device_, frame_buffer, nullptr);
+		}
+
 		if (pipeline_ != VK_NULL_HANDLE) {
 			vkDestroyPipeline(logical_device_, pipeline_, nullptr);
 		}
@@ -718,6 +840,9 @@ void Graphics::InitializeVulkan()
 	CreateSwapChain();
 	CreateRenderPass();
 	CreateGraphicsPipeline();
+	CreateFramebuffers();
+	CreateCommandPool();
+	CreateCommandBuffer();
 }
 
 void Graphics::CreateInstance()
