@@ -43,11 +43,17 @@ class Graphics {
 	void CreateFramebuffers();
 	void CreateCommandPool();
 	void CreateCommandBuffer();
+	void CreateSignals();
 
 	// Rendering
 
-	void BeginCommands(std::uint32_t current_image_index);
+	public:
+	void BeginFrame();
 	void RenderTriangle();
+	void EndFrame();
+
+	private:
+	void BeginCommands();
 	void EndCommands();
 
 	std::vector<gsl::czstring> GetRequiredInstanceExtensions();
@@ -102,6 +108,12 @@ class Graphics {
 
 	VkCommandPool command_pool_ = VK_NULL_HANDLE;
 	VkCommandBuffer command_buffer_ = VK_NULL_HANDLE;
+
+	VkSemaphore image_available_signal_ = VK_NULL_HANDLE;
+	VkSemaphore render_finished_signal_ = VK_NULL_HANDLE;
+	VkFence still_rendering_fence_ = VK_NULL_HANDLE;
+
+	std::uint32_t current_image_index_ = 0;
 
 	gsl::not_null<Window*> window_;
 	bool validation_enabled_ = false;

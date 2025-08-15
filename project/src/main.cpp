@@ -4,6 +4,8 @@
 #include <glfw_initialization.h>
 #include <glfw_window.h>
 #include <graphics.h>
+#include <chrono>
+#include <thread>
 
 int main(std::size_t argc, gsl::zstring* argv)
 {
@@ -17,6 +19,9 @@ int main(std::size_t argc, gsl::zstring* argv)
 
 	while (!window.ShouldClose()) {
 		glfwPollEvents();
+		graphics.BeginFrame();
+		graphics.RenderTriangle();
+		graphics.EndFrame();
 	}
 
 	return EXIT_SUCCESS;
