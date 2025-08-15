@@ -597,9 +597,16 @@ void Graphics::CreateGraphicsPipeline()
 	multisampling_info.sampleShadingEnable = VK_FALSE;
 	multisampling_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
-	VkPipelineColorBlendAttachmentState color_blend_attachment = {};
-	color_blend_attachment.blendEnable = VK_FALSE;
+	VkPipelineColorBlendAttachmentState color_blend_attachment{};
 	color_blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+	color_blend_attachment.blendEnable = VK_TRUE;
+	color_blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	color_blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	color_blend_attachment.colorBlendOp = VK_BLEND_OP_ADD;
+	color_blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	color_blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	color_blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
 
 	VkPipelineColorBlendStateCreateInfo color_blending_info = {};
 	color_blending_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
@@ -730,14 +737,26 @@ void Graphics::CreateCommandBuffer()
 	}
 }
 
-void Graphics::BeginFrame()
+bool Graphics::BeginFrame()
 {
 	vkWaitForFences(logical_device_, 1, &still_rendering_fence_, VK_TRUE, UINT32_MAX);
+
+	VkResult image_acquire_result = vkAcquireNextImageKHR(logical_device_, swap_chain_, UINT64_MAX, image_available_signal_, VK_NULL_HANDLE, &current_image_index_);
+
+	if (image_acquire_result == VK_ERROR_OUT_OF_DATE_KHR)
+	{
+		RecreateSwapChain();
+		return false;
+	}
+
+	if (image_acquire_result != VK_SUCCESS && image_acquire_result != VK_SUBOPTIMAL_KHR)
+	{
+		throw std::runtime_error("Couldn't acquire render image!");
+	}
+
 	vkResetFences(logical_device_, 1, &still_rendering_fence_);
-
-	vkAcquireNextImageKHR(logical_device_, swap_chain_, UINT64_MAX, image_available_signal_, VK_NULL_HANDLE, &current_image_index_);
 	BeginCommands();
-
+	return true;
 }
 
 void Graphics::BeginCommands()
@@ -840,10 +859,55 @@ void Graphics::EndFrame()
 	present_info.pSwapchains = &swap_chain_;
 	present_info.pImageIndices = &current_image_index_;
 
-	vkQueuePresentKHR(presentation_queue_, &present_info);
+	VkResult result = vkQueuePresentKHR(presentation_queue_, &present_info);
+
+	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
+	{
+		RecreateSwapChain();
+	}
+	else if (result != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to present swap chain image!");
+	}
 }
 
 #pragma endregion
+
+void Graphics::RecreateSwapChain()
+{
+	glm::ivec2 size = window_->GetFramebufferSize();
+	while (size.x == 0 || size.y == 0)
+	{
+		size = window_->GetFramebufferSize();
+		glfwWaitEvents();
+	}
+	vkDeviceWaitIdle(logical_device_);
+	CleanupSwapChain();
+
+	CreateSwapChain();
+	CreateImageViews();
+	CreateFramebuffers();
+}
+
+void Graphics::CleanupSwapChain()
+{
+	if (logical_device_ != VK_NULL_HANDLE)
+	{
+		return;
+	}
+
+	for (VkFramebuffer frame_buffer : swap_chain_framebuffers_) {
+		vkDestroyFramebuffer(logical_device_, frame_buffer, nullptr);
+	}
+
+	for (VkImageView image_view : swap_chain_image_views_) {
+		vkDestroyImageView(logical_device_, image_view, nullptr);
+	}
+
+	if (swap_chain_ != VK_NULL_HANDLE) {
+		vkDestroySwapchainKHR(logical_device_, swap_chain_, nullptr);
+	}
+}
 
 Graphics::Graphics(gsl::not_null<Window*> window) : window_(window)
 {
@@ -855,8 +919,10 @@ Graphics::Graphics(gsl::not_null<Window*> window) : window_(window)
 
 Graphics::~Graphics()
 {
+
 	if (logical_device_ != VK_NULL_HANDLE) {
 		vkDeviceWaitIdle(logical_device_);
+		CleanupSwapChain();
 
 		if (image_available_signal_ != VK_NULL_HANDLE) {
 			vkDestroySemaphore(logical_device_, image_available_signal_, nullptr);
@@ -873,10 +939,6 @@ Graphics::~Graphics()
 			vkDestroyCommandPool(logical_device_, command_pool_, nullptr);
 		}
 
-		for (VkFramebuffer frame_buffer : swap_chain_framebuffers_) {
-			vkDestroyFramebuffer(logical_device_, frame_buffer, nullptr);
-		}
-
 		if (pipeline_ != VK_NULL_HANDLE) {
 			vkDestroyPipeline(logical_device_, pipeline_, nullptr);
 		}
@@ -889,13 +951,6 @@ Graphics::~Graphics()
 			vkDestroyRenderPass(logical_device_, render_pass_, nullptr);
 		}
 
-		for (VkImageView image_view : swap_chain_image_views_) {
-			vkDestroyImageView(logical_device_, image_view, nullptr);
-		}
-
-		if (swap_chain_ != VK_NULL_HANDLE) {
-			vkDestroySwapchainKHR(logical_device_, swap_chain_, nullptr);
-		}
 		vkDestroyDevice(logical_device_, nullptr);
 	}
 	if (instance_ != VK_NULL_HANDLE) {

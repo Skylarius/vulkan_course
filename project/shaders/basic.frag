@@ -1,7 +1,8 @@
 #version 450
 #include "common.glsl"
+layout(location = 0) in vec4 vertex_color;
 layout(location = 0) out vec4 out_color;
 
 void main() {
-    out_color = vec4(1.0, 0.0, 0.5, 1.0); // Set the output color to a pinkish hue
+    out_color = vertex_color;
 }

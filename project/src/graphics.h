@@ -45,10 +45,13 @@ class Graphics {
 	void CreateCommandBuffer();
 	void CreateSignals();
 
+	void RecreateSwapChain();
+	void CleanupSwapChain();
+
 	// Rendering
 
 	public:
-	void BeginFrame();
+	bool BeginFrame();
 	void RenderTriangle();
 	void EndFrame();
 

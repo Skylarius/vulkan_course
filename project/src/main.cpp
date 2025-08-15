@@ -19,9 +19,11 @@ int main(std::size_t argc, gsl::zstring* argv)
 
 	while (!window.ShouldClose()) {
 		glfwPollEvents();
-		graphics.BeginFrame();
-		graphics.RenderTriangle();
-		graphics.EndFrame();
+		if (graphics.BeginFrame())
+		{
+			graphics.RenderTriangle();
+			graphics.EndFrame();
+		}
 	}
 
 	return EXIT_SUCCESS;
