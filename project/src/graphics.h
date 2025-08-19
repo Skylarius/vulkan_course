@@ -4,6 +4,8 @@
 #include <glfw_window.h>
 #include <vector>
 #include <optional>
+#include <vertex.h>
+#include <buffer_handle.h>
 
 namespace veng {
 
@@ -52,8 +54,11 @@ class Graphics {
 
 	public:
 	bool BeginFrame();
-	void RenderTriangle();
+	void RenderBuffer(BufferHandle handle, std::uint32_t vertex_count);
 	void EndFrame();
+
+	BufferHandle CreateVertexBuffer(gsl::span<Vertex> vertices);
+	void DestroyVertexBuffer(BufferHandle handle);
 
 	private:
 	void BeginCommands();
@@ -84,6 +89,11 @@ class Graphics {
 	VkShaderModule CreateShaderModule(gsl::span<std::uint8_t> buffer);
 	VkViewport GetViewport();
 	VkRect2D GetScissor();
+
+	std::uint32_t FindMemoryType(std::uint32_t type_bits_filter, VkMemoryPropertyFlags required_properties);
+
+	VkCommandBuffer BeginTransientCommandBuffer();
+	void EndTransientCommandBuffer(VkCommandBuffer command_buffer);
 
 	std::array<gsl::czstring, 1> required_device_extensions_ = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 

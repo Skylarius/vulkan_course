@@ -571,10 +571,15 @@ void Graphics::CreateGraphicsPipeline()
 
 	// Vertex Input and Rasterization
 
+	auto vertex_binding_description = veng::Vertex::GetBindingDescription();
+	auto vertex_attribute_descriptions = veng::Vertex::GetAttributeDescriptions();
+
 	VkPipelineVertexInputStateCreateInfo vertex_input_info = {};
 	vertex_input_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertex_input_info.vertexBindingDescriptionCount = 0;
-	vertex_input_info.vertexAttributeDescriptionCount = 0;
+	vertex_input_info.vertexBindingDescriptionCount = 1;
+	vertex_input_info.pVertexBindingDescriptions = &vertex_binding_description;
+	vertex_input_info.vertexAttributeDescriptionCount = vertex_attribute_descriptions.size();
+	vertex_input_info.pVertexAttributeDescriptions = vertex_attribute_descriptions.data();
 
 	VkPipelineInputAssemblyStateCreateInfo input_assembly_info = {};
 	input_assembly_info.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -684,7 +689,7 @@ void Graphics::CreateRenderPass()
 
 #pragma endregion
 
-#pragma region
+#pragma region DRAWING
 
 void Graphics::CreateFramebuffers()
 {
@@ -759,6 +764,13 @@ bool Graphics::BeginFrame()
 	return true;
 }
 
+void Graphics::RenderBuffer(BufferHandle handle, std::uint32_t vertex_count)
+{
+	VkDeviceSize offset = 0;
+	vkCmdBindVertexBuffers(command_buffer_, 0, 1, &handle.buffer, &offset);
+	vkCmdDraw(command_buffer_, vertex_count, 1, 0, 0);
+}
+
 void Graphics::BeginCommands()
 {
 	vkResetCommandBuffer(command_buffer_, 0);
@@ -788,11 +800,6 @@ void Graphics::BeginCommands()
 
 	vkCmdSetViewport(command_buffer_, 0, 1, &viewport);
 	vkCmdSetScissor(command_buffer_, 0, 1, &scissor);
-}
-
-void Graphics::RenderTriangle()
-{
-	vkCmdDraw(command_buffer_, 3, 1, 0, 0);
 }
 
 void Graphics::EndCommands()
@@ -871,8 +878,6 @@ void Graphics::EndFrame()
 	}
 }
 
-#pragma endregion
-
 void Graphics::RecreateSwapChain()
 {
 	glm::ivec2 size = window_->GetFramebufferSize();
@@ -891,7 +896,7 @@ void Graphics::RecreateSwapChain()
 
 void Graphics::CleanupSwapChain()
 {
-	if (logical_device_ != VK_NULL_HANDLE)
+	if (logical_device_ == VK_NULL_HANDLE)
 	{
 		return;
 	}
@@ -908,6 +913,117 @@ void Graphics::CleanupSwapChain()
 		vkDestroySwapchainKHR(logical_device_, swap_chain_, nullptr);
 	}
 }
+
+#pragma endregion
+
+#pragma region BUFFERS
+
+std::uint32_t Graphics::FindMemoryType(std::uint32_t type_bits_filter, VkMemoryPropertyFlags required_properties)
+{
+	VkPhysicalDeviceMemoryProperties memory_properties;
+	vkGetPhysicalDeviceMemoryProperties(physical_device_, &memory_properties);
+	gsl::span<VkMemoryType> memory_types(memory_properties.memoryTypes, memory_properties.memoryTypeCount);
+
+	for (std::uint32_t i = 0; i < memory_types.size(); i++) {
+		bool passes_filter = type_bits_filter & (1 << i);
+		bool has_property_flags = memory_types[i].propertyFlags & required_properties;
+
+		if (passes_filter && has_property_flags) {
+			return i;
+		}
+	}
+
+	throw std::runtime_error("Failed to find suitable memory type!");
+}
+
+BufferHandle Graphics::CreateVertexBuffer(gsl::span<Vertex> vertices)
+{
+	BufferHandle handle = {};
+	VkBufferCreateInfo buffer_info = {};
+	buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	buffer_info.size = sizeof(Vertex) * vertices.size();
+	buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	VkResult result = vkCreateBuffer(logical_device_, &buffer_info, nullptr, &handle.buffer);
+
+	if (result != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create vertex buffer!");
+	}
+
+	VkMemoryRequirements memory_requirements;
+	vkGetBufferMemoryRequirements(logical_device_, handle.buffer, &memory_requirements);
+
+	std::uint32_t chosen_memory_type_index = FindMemoryType(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+	VkMemoryAllocateInfo allocation_info = {};
+	allocation_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocation_info.allocationSize = memory_requirements.size;
+	allocation_info.memoryTypeIndex = chosen_memory_type_index;
+
+	VkResult allocation_result = vkAllocateMemory(logical_device_, &allocation_info, nullptr, &handle.memory);
+
+	if (allocation_result != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to allocate buffer memory!");
+	}
+
+	vkBindBufferMemory(logical_device_, handle.buffer, handle.memory, 0);
+
+	void* data;
+
+	vkMapMemory(logical_device_, handle.memory, 0, buffer_info.size, 0, &data);
+	std::memcpy(data, vertices.data(), buffer_info.size);
+
+	vkUnmapMemory(logical_device_, handle.memory);
+
+	return handle;
+}
+
+void Graphics::DestroyVertexBuffer(BufferHandle handle)
+{
+	vkDeviceWaitIdle(logical_device_);
+	vkDestroyBuffer(logical_device_, handle.buffer, nullptr);
+	vkFreeMemory(logical_device_, handle.memory, nullptr);
+}
+
+VkCommandBuffer Graphics::BeginTransientCommandBuffer()
+{
+	VkCommandBufferAllocateInfo allocation_info = {};
+	allocation_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	allocation_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	allocation_info.commandPool = command_pool_;
+	allocation_info.commandBufferCount = 1;
+
+	VkCommandBuffer buffer;
+	vkAllocateCommandBuffers(logical_device_, &allocation_info, &buffer);
+
+	VkCommandBufferBeginInfo begin_info;
+	begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	vkBeginCommandBuffer(buffer, &begin_info);
+
+	return buffer;
+}
+
+void Graphics::EndTransientCommandBuffer(VkCommandBuffer command_buffer)
+{
+	vkEndCommandBuffer(command_buffer);
+
+	VkSubmitInfo submit_info = {};
+	submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submit_info.commandBufferCount = 1;
+	submit_info.pCommandBuffers = &command_buffer;
+
+	vkQueueSubmit(graphics_queue_, 1, &submit_info, VK_NULL_HANDLE);
+	vkQueueWaitIdle(graphics_queue_);
+	vkFreeCommandBuffers(logical_device_, command_pool_, 1, &command_buffer);
+}
+
+#pragma endregion
+
+#pragma region CLASS
 
 Graphics::Graphics(gsl::not_null<Window*> window) : window_(window)
 {
@@ -1017,7 +1133,6 @@ void Graphics::CreateInstance()
 		instance_creation_info.enabledLayerCount = 0;
 		instance_creation_info.ppEnabledLayerNames = nullptr;
 	}
-	instance_creation_info.enabledLayerCount = 0;
 
 	VkResult result = vkCreateInstance(&instance_creation_info, nullptr, &instance_);
 
@@ -1025,5 +1140,7 @@ void Graphics::CreateInstance()
 		std::exit(EXIT_FAILURE);
 	}
 }
+
+#pragma endregion
 
 }  // namespace veng
