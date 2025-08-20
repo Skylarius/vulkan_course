@@ -6,6 +6,7 @@
 #include <graphics.h>
 #include <chrono>
 #include <thread>
+#include <glm/gtc/matrix_transform.hpp>
 
 int main(std::size_t argc, gsl::zstring* argv)
 {
@@ -18,22 +19,35 @@ int main(std::size_t argc, gsl::zstring* argv)
 	veng::Graphics graphics(&window);
 
 	std::array<veng::Vertex, 3> vertices = {
-	    veng::Vertex{glm::vec3{0.0f, -0.5f, 0.0f}, glm::vec3{1.0f, 1.0f, 1.0f}},
+	    veng::Vertex{glm::vec3{0.0f, -0.5f, 0.0f}, glm::vec3{1.0f, 0.0f, 0.0f}},
 		veng::Vertex{glm::vec3{0.5f, 0.5f, 0.0f}, glm::vec3{0.0f, 1.0f, 0.0f}},
 	    veng::Vertex{glm::vec3{-0.5f, 0.5f, 0.0f}, glm::vec3{0.0f, 0.0f, 1.0f}}
 	};
 
-	veng::BufferHandle buffer = graphics.CreateVertexBuffer(vertices);
+	veng::BufferHandle vertex_buffer = graphics.CreateVertexBuffer(vertices);
+
+
+	std::array<std::uint32_t, 3> indices = {0, 1, 2};
+
+	veng::BufferHandle index_buffer = graphics.CreateIndexBuffer(indices);
+
+	glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -2.0f));
+	glm::ivec2 window_size = window.GetWindowSize();
+	glm::mat4 projection = glm::perspective(glm::radians(60.0f), float(window_size.x) / window_size.y, 0.1f, 100.0f);
+	graphics.SetViewProjection(view, projection);
+
 
 	while (!window.ShouldClose()) {
 		glfwPollEvents();
 		if (graphics.BeginFrame()) {
-			graphics.RenderBuffer(buffer, vertices.size());
+			graphics.RenderIndexedBuffer(vertex_buffer, index_buffer, indices.size());
 			graphics.EndFrame();
 		}
 	}
 
-	graphics.DestroyVertexBuffer(buffer);
+	graphics.DestroyBuffer(vertex_buffer);
+	graphics.DestroyBuffer(index_buffer);
 
 	return EXIT_SUCCESS;
 }

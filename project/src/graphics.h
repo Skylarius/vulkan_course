@@ -46,6 +46,9 @@ class Graphics {
 	void CreateCommandPool();
 	void CreateCommandBuffer();
 	void CreateSignals();
+	void CreateDescriptorSetLayout();
+	void CreateDescriptorPool();
+	void CreateDescriptorSet();
 
 	void RecreateSwapChain();
 	void CleanupSwapChain();
@@ -54,11 +57,15 @@ class Graphics {
 
 	public:
 	bool BeginFrame();
+	void SetModelMatrix(glm::mat4 model);
+	void SetViewProjection(glm::mat4 view, glm::mat4 projection);
 	void RenderBuffer(BufferHandle handle, std::uint32_t vertex_count);
+	void RenderIndexedBuffer(BufferHandle vertex_buffer, BufferHandle index_buffer, std::uint32_t index_count);
 	void EndFrame();
 
 	BufferHandle CreateVertexBuffer(gsl::span<Vertex> vertices);
-	void DestroyVertexBuffer(BufferHandle handle);
+	BufferHandle CreateIndexBuffer(gsl::span<std::uint32_t> indices);
+	void DestroyBuffer(BufferHandle handle);
 
 	private:
 	void BeginCommands();
@@ -92,8 +99,10 @@ class Graphics {
 
 	std::uint32_t FindMemoryType(std::uint32_t type_bits_filter, VkMemoryPropertyFlags required_properties);
 
+	BufferHandle CreateBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
 	VkCommandBuffer BeginTransientCommandBuffer();
 	void EndTransientCommandBuffer(VkCommandBuffer command_buffer);
+	void CreateUniformBuffers();
 
 	std::array<gsl::czstring, 1> required_device_extensions_ = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
@@ -118,6 +127,7 @@ class Graphics {
 	VkPipelineLayout pipeline_layout_ = VK_NULL_HANDLE;
 	VkRenderPass render_pass_ = VK_NULL_HANDLE;
 	VkPipeline pipeline_ = VK_NULL_HANDLE;
+	VkDescriptorSetLayout descriptor_set_layout_ = VK_NULL_HANDLE;
 
 	VkCommandPool command_pool_ = VK_NULL_HANDLE;
 	VkCommandBuffer command_buffer_ = VK_NULL_HANDLE;
@@ -127,6 +137,12 @@ class Graphics {
 	VkFence still_rendering_fence_ = VK_NULL_HANDLE;
 
 	std::uint32_t current_image_index_ = 0;
+
+	VkDescriptorPool descriptor_pool_ = VK_NULL_HANDLE;
+	VkDescriptorSet descriptor_set_ = VK_NULL_HANDLE;
+
+	BufferHandle uniform_buffer_;
+	void* uniform_buffer_location_ = nullptr;
 
 	gsl::not_null<Window*> window_;
 	bool validation_enabled_ = false;
