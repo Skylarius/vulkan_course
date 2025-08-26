@@ -47,8 +47,9 @@ class Graphics {
 	void CreateCommandBuffer();
 	void CreateSignals();
 	void CreateDescriptorSetLayout();
-	void CreateDescriptorPool();
-	void CreateDescriptorSet();
+	void CreateDescriptorPools();
+	void CreateDescriptorSets();
+	void CreateTextureSampler();
 
 	void RecreateSwapChain();
 	void CleanupSwapChain();
@@ -127,7 +128,6 @@ class Graphics {
 	VkPipelineLayout pipeline_layout_ = VK_NULL_HANDLE;
 	VkRenderPass render_pass_ = VK_NULL_HANDLE;
 	VkPipeline pipeline_ = VK_NULL_HANDLE;
-	VkDescriptorSetLayout descriptor_set_layout_ = VK_NULL_HANDLE;
 
 	VkCommandPool command_pool_ = VK_NULL_HANDLE;
 	VkCommandBuffer command_buffer_ = VK_NULL_HANDLE;
@@ -138,11 +138,16 @@ class Graphics {
 
 	std::uint32_t current_image_index_ = 0;
 
-	VkDescriptorPool descriptor_pool_ = VK_NULL_HANDLE;
-	VkDescriptorSet descriptor_set_ = VK_NULL_HANDLE;
+	VkDescriptorSetLayout uniform_set_layout_ = VK_NULL_HANDLE;
+	VkDescriptorPool uniform_pool_ = VK_NULL_HANDLE;
+	VkDescriptorSet uniform_set_ = VK_NULL_HANDLE;
 
 	BufferHandle uniform_buffer_;
 	void* uniform_buffer_location_ = nullptr;
+
+	VkDescriptorSetLayout texture_set_layout_ = VK_NULL_HANDLE;
+	VkDescriptorPool texture_pool_ = VK_NULL_HANDLE;
+	VkSampler texture_sampler_ = VK_NULL_HANDLE;
 
 	gsl::not_null<Window*> window_;
 	bool validation_enabled_ = false;
