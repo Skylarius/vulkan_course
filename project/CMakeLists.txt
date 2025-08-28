@@ -70,3 +70,4 @@ add_shaders(VulkanEngineShaders ${ShaderSources})
 
 add_dependencies(VulkanEngine VulkanEngineShaders)
 
+file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/paving-stones.jpg" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}")

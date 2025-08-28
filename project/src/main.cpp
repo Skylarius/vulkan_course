@@ -37,16 +37,18 @@ int main(std::size_t argc, gsl::zstring* argv)
 	glm::ivec2 window_size = window.GetWindowSize();
 	glm::mat4 projection = glm::perspective(glm::radians(60.0f), float(window_size.x) / window_size.y, 0.1f, 100.0f);
 	graphics.SetViewProjection(view, projection);
+	veng::TextureHandle texture = graphics.CreateTexture("paving-stones.jpg");
 
 
 	while (!window.ShouldClose()) {
 		glfwPollEvents();
 		if (graphics.BeginFrame()) {
+			graphics.SetTexture(texture);
 			graphics.RenderIndexedBuffer(vertex_buffer, index_buffer, indices.size());
 			graphics.EndFrame();
 		}
 	}
-
+	graphics.DestroyTexture(texture);
 	graphics.DestroyBuffer(vertex_buffer);
 	graphics.DestroyBuffer(index_buffer);
 
