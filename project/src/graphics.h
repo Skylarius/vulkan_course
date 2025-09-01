@@ -51,6 +51,7 @@ class Graphics {
 	void CreateDescriptorPools();
 	void CreateDescriptorSets();
 	void CreateTextureSampler();
+	void CreateDepthResources();
 
 	void RecreateSwapChain();
 	void CleanupSwapChain();
@@ -62,10 +63,10 @@ class Graphics {
 	void SetModelMatrix(glm::mat4 model);
 	void SetViewProjection(glm::mat4 view, glm::mat4 projection);
 	void SetTexture(TextureHandle handle);
-	TextureHandle CreateImage(glm::ivec2 size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
+	TextureHandle CreateImage(glm::ivec2 size, VkFormat image_format, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
 	void TransitionImageLayout(VkImage image, VkImageLayout old_layout, VkImageLayout new_layout);
 	void CopyBufferToImage(VkBuffer buffer, VkImage image, glm::ivec2 size);
-	VkImageView CreateImageView(VkImage image, VkFormat format);
+	VkImageView CreateImageView(VkImage image, VkFormat format, VkImageAspectFlags aspect_flag);
 	void RenderBuffer(BufferHandle handle, std::uint32_t vertex_count);
 	void RenderIndexedBuffer(BufferHandle vertex_buffer, BufferHandle index_buffer, std::uint32_t index_count);
 	void EndFrame();
@@ -156,6 +157,7 @@ class Graphics {
 	VkDescriptorSetLayout texture_set_layout_ = VK_NULL_HANDLE;
 	VkDescriptorPool texture_pool_ = VK_NULL_HANDLE;
 	VkSampler texture_sampler_ = VK_NULL_HANDLE;
+	TextureHandle depth_texture_;
 
 	gsl::not_null<Window*> window_;
 	bool validation_enabled_ = false;
