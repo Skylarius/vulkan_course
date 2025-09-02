@@ -7,6 +7,8 @@
 #include <chrono>
 #include <thread>
 #include <glm/gtc/matrix_transform.hpp>
+#include <chrono>
+#include <thread>
 
 int main(std::size_t argc, gsl::zstring* argv)
 {
@@ -39,16 +41,24 @@ int main(std::size_t argc, gsl::zstring* argv)
 	graphics.SetViewProjection(view, projection);
 	veng::TextureHandle texture = graphics.CreateTexture("paving-stones.jpg");
 
+	// PERSONAL: FRAMERATE LIMIT
+	const std::float_t frame_rate = 60.0f;
+	const long long frame_time_nanoseconds = static_cast<long long>(1'000'000'000 / frame_rate);
+	long long time_begin, time_end;
+
 
 	while (!window.ShouldClose()) {
 		glfwPollEvents();
 		if (graphics.BeginFrame()) {
+			time_begin = std::chrono::high_resolution_clock::now().time_since_epoch().count();
 			graphics.SetTexture(texture);
 			graphics.RenderIndexedBuffer(vertex_buffer, index_buffer, indices.size());
 
-			graphics.SetModelMatrix(rotation);
-			graphics.RenderIndexedBuffer(vertex_buffer, index_buffer, indices.size());
+			//graphics.SetModelMatrix(rotation);
+			//graphics.RenderIndexedBuffer(vertex_buffer, index_buffer, indices.size());
 			graphics.EndFrame();
+			time_end = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+			std::this_thread::sleep_for(std::chrono::nanoseconds(std::clamp(frame_time_nanoseconds - (time_end - time_begin), 0LL, frame_time_nanoseconds)));
 		}
 	}
 	graphics.DestroyTexture(texture);
