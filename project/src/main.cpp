@@ -52,13 +52,15 @@ int main(std::size_t argc, gsl::zstring* argv)
 		if (graphics.BeginFrame()) {
 			time_begin = std::chrono::high_resolution_clock::now().time_since_epoch().count();
 			graphics.SetTexture(texture);
-			graphics.RenderIndexedBuffer(vertex_buffer, index_buffer, indices.size());
-
-			//graphics.SetModelMatrix(rotation);
 			//graphics.RenderIndexedBuffer(vertex_buffer, index_buffer, indices.size());
-			graphics.EndFrame();
+
+			graphics.SetModelMatrix(rotation);
+			rotation = glm::rotate(rotation, glm::radians(1.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+			graphics.RenderIndexedBuffer(vertex_buffer, index_buffer, indices.size());
 			time_end = std::chrono::high_resolution_clock::now().time_since_epoch().count();
 			std::this_thread::sleep_for(std::chrono::nanoseconds(std::clamp(frame_time_nanoseconds - (time_end - time_begin), 0LL, frame_time_nanoseconds)));
+			graphics.EndFrame();
+			graphics.SetViewProjection(view, projection);
 		}
 	}
 	graphics.DestroyTexture(texture);
