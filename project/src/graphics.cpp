@@ -877,21 +877,27 @@ void Graphics::EndCommands()
 
 void Graphics::CreateSignals()
 {
-	for (Frame& frame : frames_) {
-		VkSemaphoreCreateInfo semaphore_info = {};
-		semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	VkSemaphoreCreateInfo semaphore_info = {};
+	semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-		VkFenceCreateInfo fence_info = {};
-		fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-		fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+	VkFenceCreateInfo fence_info = {};
+	fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+	for (Frame& frame : frames_) {
 
 		if (vkCreateSemaphore(logical_device_, &semaphore_info, nullptr, &frame.image_available_signal) != VK_SUCCESS) {
 			std::exit(EXIT_FAILURE);
 		}
-		if (vkCreateSemaphore(logical_device_, &semaphore_info, nullptr, &frame.render_finished_signal) != VK_SUCCESS) {
+		if (vkCreateFence(logical_device_, &fence_info, nullptr, &frame.still_rendering_fence) != VK_SUCCESS) {
 			std::exit(EXIT_FAILURE);
 		}
-		if (vkCreateFence(logical_device_, &fence_info, nullptr, &frame.still_rendering_fence) != VK_SUCCESS) {
+	}
+
+	// Create as many render_finished semaphores as the size of the swapchain (to avoid error in vulkan validation)
+	render_finished_signals.resize(swap_chain_images_.size());
+	for (std::uint32_t i = 0; i < render_finished_signals.size(); i++)
+	{
+		if (vkCreateSemaphore(logical_device_, &semaphore_info, nullptr, &render_finished_signals[i]) != VK_SUCCESS) {
 			std::exit(EXIT_FAILURE);
 		}
 	}
@@ -912,7 +918,7 @@ void Graphics::EndFrame()
 	submit_info.pCommandBuffers = &frames_[current_frame_].command_buffer;
 
 	submit_info.signalSemaphoreCount = 1;
-	submit_info.pSignalSemaphores = &frames_[current_frame_].render_finished_signal;
+	submit_info.pSignalSemaphores = &render_finished_signals[current_image_index_];
 
 	VkResult submit_result = vkQueueSubmit(graphics_queue_, 1, &submit_info, frames_[current_frame_].still_rendering_fence);
 	if (submit_result != VK_SUCCESS) {
@@ -922,7 +928,7 @@ void Graphics::EndFrame()
 	VkPresentInfoKHR present_info = {};
 	present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	present_info.waitSemaphoreCount = 1;
-	present_info.pWaitSemaphores = &frames_[current_frame_].render_finished_signal;
+	present_info.pWaitSemaphores = &render_finished_signals[current_image_index_];
 	present_info.swapchainCount = 1;
 	present_info.pSwapchains = &swap_chain_;
 	present_info.pImageIndices = &current_image_index_;
@@ -1530,11 +1536,14 @@ Graphics::~Graphics()
 			if (frame.image_available_signal != VK_NULL_HANDLE) {
 				vkDestroySemaphore(logical_device_, frame.image_available_signal, nullptr);
 			}
-			if (frame.render_finished_signal != VK_NULL_HANDLE) {
-				vkDestroySemaphore(logical_device_, frame.render_finished_signal, nullptr);
-			}
+			
 			if (frame.still_rendering_fence != VK_NULL_HANDLE) {
 				vkDestroyFence(logical_device_, frame.still_rendering_fence, nullptr);
+			}
+		}
+		for (std::uint32_t i = 0; i < render_finished_signals.size(); i++) {
+			if (render_finished_signals[i] != VK_NULL_HANDLE) {
+				vkDestroySemaphore(logical_device_, render_finished_signals[i], nullptr);
 			}
 		}
 
