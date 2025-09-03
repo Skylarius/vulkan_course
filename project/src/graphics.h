@@ -12,10 +12,10 @@ namespace veng {
 
 struct Frame {
 	VkSemaphore image_available_signal = VK_NULL_HANDLE;
-	VkSemaphore render_finished_signal = VK_NULL_HANDLE;
+	//VkSemaphore render_finished_signal = VK_NULL_HANDLE;
 	VkFence still_rendering_fence = VK_NULL_HANDLE;
 
-	VkCommandBuffer command_buffer = VK_NULL_HANDLE;
+	//VkCommandBuffer command_buffer = VK_NULL_HANDLE;
 
 	VkDescriptorSet uniform_set = VK_NULL_HANDLE;
 	BufferHandle uniform_buffer;
@@ -145,6 +145,8 @@ class Graphics {
 	std::vector<VkImage> swap_chain_images_;
 	std::vector<VkImageView> swap_chain_image_views_;
 	std::vector<VkFramebuffer> swap_chain_framebuffers_;
+	std::vector<VkSemaphore> render_finished_signals_;
+	std::vector<VkCommandBuffer> command_buffers_;
 
 	VkPipelineLayout pipeline_layout_ = VK_NULL_HANDLE;
 	VkRenderPass render_pass_ = VK_NULL_HANDLE;

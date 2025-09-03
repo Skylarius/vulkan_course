@@ -768,18 +768,28 @@ void Graphics::CreateCommandPool()
 
 void Graphics::CreateCommandBuffer()
 {
-	VkCommandBufferAllocateInfo command_buffer_info = {};
-	command_buffer_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	command_buffer_info.commandPool = command_pool_;
-	command_buffer_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	command_buffer_info.commandBufferCount = 1;
+	command_buffers_.resize(swap_chain_framebuffers_.size());
+	for (std::uint32_t i = 0; i < command_buffers_.size(); i++)
+	{
+		VkCommandBufferAllocateInfo command_buffer_info = {};
+		command_buffer_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		command_buffer_info.commandPool = command_pool_;
+		command_buffer_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		command_buffer_info.commandBufferCount = 1;
 
-	for (Frame& frame : frames_) {
-		VkResult result = vkAllocateCommandBuffers(logical_device_, &command_buffer_info, &frame.command_buffer);
+		VkResult result = vkAllocateCommandBuffers(logical_device_, &command_buffer_info, &command_buffers_[i]);
 		if (result != VK_SUCCESS) {
 			std::exit(EXIT_FAILURE);
 		}
 	}
+
+	//for (Frame& frame : frames_) {
+	//	VkResult result = vkAllocateCommandBuffers(logical_device_, &command_buffer_info, &frame.command_buffer);
+	//	if (result != VK_SUCCESS) {
+	//		std::exit(EXIT_FAILURE);
+	//	}
+	//}
+
 }
 
 bool Graphics::BeginFrame()
@@ -806,14 +816,18 @@ bool Graphics::BeginFrame()
 void Graphics::RenderBuffer(BufferHandle handle, std::uint32_t vertex_count)
 {
 	VkDeviceSize offset = 0;
-	vkCmdBindDescriptorSets(frames_[current_frame_].command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0, 1, &frames_[current_frame_].uniform_set, 0, nullptr);
-	vkCmdBindVertexBuffers(frames_[current_frame_].command_buffer, 0, 1, &handle.buffer, &offset);
-	vkCmdDraw(frames_[current_frame_].command_buffer, vertex_count, 1, 0, 0);
+	//vkCmdBindDescriptorSets(frames_[current_frame_].command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0, 1, &frames_[current_frame_].uniform_set, 0, nullptr);
+	//vkCmdBindVertexBuffers(frames_[current_frame_].command_buffer, 0, 1, &handle.buffer, &offset);
+	//vkCmdDraw(frames_[current_frame_].command_buffer, vertex_count, 1, 0, 0);
+	vkCmdBindDescriptorSets(command_buffers_[current_image_index_], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0, 1, &frames_[current_frame_].uniform_set, 0, nullptr);
+	vkCmdBindVertexBuffers(command_buffers_[current_image_index_], 0, 1, &handle.buffer, &offset);
+	vkCmdDraw(command_buffers_[current_image_index_], vertex_count, 1, 0, 0);
 }
 
 void Graphics::SetModelMatrix(glm::mat4 model)
 {
-	vkCmdPushConstants(frames_[current_frame_].command_buffer, pipeline_layout_, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &model);
+	//vkCmdPushConstants(frames_[current_frame_].command_buffer, pipeline_layout_, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &model);
+	vkCmdPushConstants(command_buffers_[current_image_index_], pipeline_layout_, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &model);
 }
 
 void Graphics::SetViewProjection(glm::mat4 view, glm::mat4 projection)
@@ -825,20 +839,26 @@ void Graphics::SetViewProjection(glm::mat4 view, glm::mat4 projection)
 void Graphics::RenderIndexedBuffer(BufferHandle vertex_buffer, BufferHandle index_buffer, std::uint32_t index_count)
 {
 	VkDeviceSize offset = 0;
-	vkCmdBindDescriptorSets(frames_[current_frame_].command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0, 1, &frames_[current_frame_].uniform_set, 0, nullptr);
-	vkCmdBindVertexBuffers(frames_[current_frame_].command_buffer, 0, 1, &vertex_buffer.buffer, &offset);
-	vkCmdBindIndexBuffer(frames_[current_frame_].command_buffer, index_buffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-	vkCmdDrawIndexed(frames_[current_frame_].command_buffer, index_count, 1, 0, 0, 0);
+	//vkCmdBindDescriptorSets(frames_[current_frame_].command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0, 1, &frames_[current_frame_].uniform_set, 0, nullptr);
+	//vkCmdBindVertexBuffers(frames_[current_frame_].command_buffer, 0, 1, &vertex_buffer.buffer, &offset);
+	//vkCmdBindIndexBuffer(frames_[current_frame_].command_buffer, index_buffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+	//vkCmdDrawIndexed(frames_[current_frame_].command_buffer, index_count, 1, 0, 0, 0);
+	vkCmdBindDescriptorSets(command_buffers_[current_image_index_], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0, 1, &frames_[current_frame_].uniform_set, 0, nullptr);
+	vkCmdBindVertexBuffers(command_buffers_[current_image_index_], 0, 1, &vertex_buffer.buffer, &offset);
+	vkCmdBindIndexBuffer(command_buffers_[current_image_index_], index_buffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+	vkCmdDrawIndexed(command_buffers_[current_image_index_], index_count, 1, 0, 0, 0);
 	SetModelMatrix(glm::mat4(1.0f));  // Reset model matrix to identity
 }
 
 void Graphics::BeginCommands()
 {
-	vkResetCommandBuffer(frames_[current_frame_].command_buffer, 0);
+	//vkResetCommandBuffer(frames_[current_frame_].command_buffer, 0);
+	vkResetCommandBuffer(command_buffers_[current_image_index_], 0);
 	VkCommandBufferBeginInfo begin_info = {};
 	begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-	VkResult begin_state_result = vkBeginCommandBuffer(frames_[current_frame_].command_buffer, &begin_info);
+	//VkResult begin_state_result = vkBeginCommandBuffer(frames_[current_frame_].command_buffer, &begin_info);
+	VkResult begin_state_result = vkBeginCommandBuffer(command_buffers_[current_image_index_], &begin_info);
 	if (begin_state_result != VK_SUCCESS) {
 		throw std::runtime_error("Failed to begin command buffer");
 	}
@@ -856,20 +876,25 @@ void Graphics::BeginCommands()
 
 	render_pass_begin_info.clearValueCount = clear_values.size();
 	render_pass_begin_info.pClearValues = clear_values.data();
-	vkCmdBeginRenderPass(frames_[current_frame_].command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
-
-	vkCmdBindPipeline(frames_[current_frame_].command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
+	//vkCmdBeginRenderPass(frames_[current_frame_].command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+	//vkCmdBindPipeline(frames_[current_frame_].command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
+	vkCmdBeginRenderPass(command_buffers_[current_image_index_], &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+	vkCmdBindPipeline(command_buffers_[current_image_index_], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
 	VkViewport viewport = GetViewport();
 	VkRect2D scissor = GetScissor();
 
-	vkCmdSetViewport(frames_[current_frame_].command_buffer, 0, 1, &viewport);
-	vkCmdSetScissor(frames_[current_frame_].command_buffer, 0, 1, &scissor);
+	//vkCmdSetViewport(frames_[current_frame_].command_buffer, 0, 1, &viewport);
+	//vkCmdSetScissor(frames_[current_frame_].command_buffer, 0, 1, &scissor);
+	vkCmdSetViewport(command_buffers_[current_image_index_], 0, 1, &viewport);
+	vkCmdSetScissor(command_buffers_[current_image_index_], 0, 1, &scissor);
 }
 
 void Graphics::EndCommands()
 {
-	vkCmdEndRenderPass(frames_[current_frame_].command_buffer);
-	VkResult end_buffer_result = vkEndCommandBuffer(frames_[current_frame_].command_buffer);
+	//vkCmdEndRenderPass(frames_[current_frame_].command_buffer);
+	vkCmdEndRenderPass(command_buffers_[current_image_index_]);
+	//VkResult end_buffer_result = vkEndCommandBuffer(frames_[current_frame_].command_buffer);
+	VkResult end_buffer_result = vkEndCommandBuffer(command_buffers_[current_image_index_]);
 	if (end_buffer_result != VK_SUCCESS) {
 		throw std::runtime_error("Failed to record command buffer!");
 	}
@@ -888,10 +913,20 @@ void Graphics::CreateSignals()
 		if (vkCreateSemaphore(logical_device_, &semaphore_info, nullptr, &frame.image_available_signal) != VK_SUCCESS) {
 			std::exit(EXIT_FAILURE);
 		}
-		if (vkCreateSemaphore(logical_device_, &semaphore_info, nullptr, &frame.render_finished_signal) != VK_SUCCESS) {
+		//if (vkCreateSemaphore(logical_device_, &semaphore_info, nullptr, &frame.render_finished_signal) != VK_SUCCESS) {
+		//	std::exit(EXIT_FAILURE);
+		//}
+		if (vkCreateFence(logical_device_, &fence_info, nullptr, &frame.still_rendering_fence) != VK_SUCCESS) {
 			std::exit(EXIT_FAILURE);
 		}
-		if (vkCreateFence(logical_device_, &fence_info, nullptr, &frame.still_rendering_fence) != VK_SUCCESS) {
+	}
+
+	render_finished_signals_.resize(swap_chain_image_views_.size());
+	for (std::uint32_t i = 0; i < render_finished_signals_.size(); i++)
+	{
+		VkSemaphoreCreateInfo semaphore_info = {};
+		semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+		if (vkCreateSemaphore(logical_device_, &semaphore_info, nullptr, &render_finished_signals_[i]) != VK_SUCCESS) {
 			std::exit(EXIT_FAILURE);
 		}
 	}
@@ -909,10 +944,11 @@ void Graphics::EndFrame()
 	submit_info.pWaitDstStageMask = &wait_stage;
 
 	submit_info.commandBufferCount = 1;
-	submit_info.pCommandBuffers = &frames_[current_frame_].command_buffer;
+	//submit_info.pCommandBuffers = &frames_[current_frame_].command_buffer;
+	submit_info.pCommandBuffers = &command_buffers_[current_image_index_];
 
 	submit_info.signalSemaphoreCount = 1;
-	submit_info.pSignalSemaphores = &frames_[current_frame_].render_finished_signal;
+	submit_info.pSignalSemaphores = &render_finished_signals_[current_image_index_];
 
 	VkResult submit_result = vkQueueSubmit(graphics_queue_, 1, &submit_info, frames_[current_frame_].still_rendering_fence);
 	if (submit_result != VK_SUCCESS) {
@@ -922,7 +958,7 @@ void Graphics::EndFrame()
 	VkPresentInfoKHR present_info = {};
 	present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	present_info.waitSemaphoreCount = 1;
-	present_info.pWaitSemaphores = &frames_[current_frame_].render_finished_signal;
+	present_info.pWaitSemaphores = &render_finished_signals_[current_image_index_];
 	present_info.swapchainCount = 1;
 	present_info.pSwapchains = &swap_chain_;
 	present_info.pImageIndices = &current_image_index_;
@@ -1350,7 +1386,9 @@ void Graphics::DestroyTexture(TextureHandle handle)
 
 void Graphics::SetTexture(TextureHandle handle)
 {
-	vkCmdBindDescriptorSets(frames_[current_frame_].command_buffer,
+	//vkCmdBindDescriptorSets(frames_[current_frame_].command_buffer,
+	//	VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 1, 1, &handle.set, 0, nullptr);
+	vkCmdBindDescriptorSets(command_buffers_[current_image_index_],
 		VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 1, 1, &handle.set, 0, nullptr);
 }
 
@@ -1566,11 +1604,15 @@ Graphics::~Graphics()
 			if (frame.image_available_signal != VK_NULL_HANDLE) {
 				vkDestroySemaphore(logical_device_, frame.image_available_signal, nullptr);
 			}
-			if (frame.render_finished_signal != VK_NULL_HANDLE) {
-				vkDestroySemaphore(logical_device_, frame.render_finished_signal, nullptr);
-			}
 			if (frame.still_rendering_fence != VK_NULL_HANDLE) {
 				vkDestroyFence(logical_device_, frame.still_rendering_fence, nullptr);
+			}
+		}
+
+		for (VkSemaphore& signal : render_finished_signals_)
+		{
+			if (signal != VK_NULL_HANDLE) {
+				vkDestroySemaphore(logical_device_, signal, nullptr);
 			}
 		}
 
