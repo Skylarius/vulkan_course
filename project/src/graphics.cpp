@@ -7,6 +7,22 @@
 #include <uniform_transformations.h>
 #include <stb_image.h>
 
+#define LOG_ERROR(msg) {						\
+	spdlog::error("Vulkan Error: {}", msg);		\
+}
+
+#define LOG_WARN(msg) {						\
+	spdlog::warn("Vulkan Warn: {}", msg);		\
+}
+
+#define LOG_INFO(msg) {						\
+	spdlog::info("Vulkan Info: {}", msg);		\
+}
+
+#define LOG_DEBUG(msg) {						\
+	spdlog::debug("Vulkan Debug: {}", msg);		\
+}
+
 #pragma region VK_FUNCTION_EXT_IMPL
 
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateDebugUtilsMessengerEXT(
@@ -40,13 +56,13 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL ValidationCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type, const VkDebugUtilsMessengerCallbackDataEXT* callback_data, void* user_data)
 {
 	if (severity > VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
-		spdlog::error("Vulkan Validation: {}", callback_data->pMessage);
+		LOG_ERROR("Vulkan Validation: {}", callback_data->pMessage);
 	}
 	else if (severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
-		spdlog::warn("Vulkan Validation: {}", callback_data->pMessage);
+		LOG_WARN("Vulkan Validation: {}", callback_data->pMessage);
 	}
 	else {
-		spdlog::debug("Vulkan Validation: {}", callback_data->pMessage);
+		LOG_DEBUG("Vulkan Validation: {}", callback_data->pMessage);
 	}
 
 	return VK_FALSE;
@@ -56,7 +72,10 @@ static VkDebugUtilsMessengerCreateInfoEXT GetCreateMessengerInfo()
 {
 	VkDebugUtilsMessengerCreateInfoEXT creation_info = {};
 	creation_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-	creation_info.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+	creation_info.messageSeverity =
+		VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
+		VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+		VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
 
 	creation_info.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT;
 
@@ -141,7 +160,7 @@ void Graphics::SetupDebugMessenger()
 	VkResult result = vkCreateDebugUtilsMessengerEXT(instance_, &info, nullptr, &debug_messenger_);
 
 	if (result != VK_SUCCESS) {
-		spdlog::error("Cannot create debug messenger");
+		LOG_ERROR("Cannot create debug messenger");
 		return;
 	}
 }
@@ -247,7 +266,7 @@ void Graphics::PickPhysicalDevice()
 	std::erase_if(devices, std::not_fn(std::bind_front(&Graphics::IsDeviceSuitable, this)));
 
 	if (devices.empty()) {
-		spdlog::error("No physical devices");
+		LOG_ERROR("No physical devices");
 		std::exit(EXIT_FAILURE);
 	}
 
@@ -1504,6 +1523,7 @@ Graphics::Graphics(gsl::not_null<Window*> window) : window_(window)
 {
 #if !defined(NDEBUG)
 	validation_enabled_ = true;
+	spdlog::set_level(spdlog::level::debug);
 #endif
 	InitializeVulkan();
 }
@@ -1603,6 +1623,7 @@ void Graphics::InitializeVulkan()
 	CreateDescriptorSets();
 	CreateTextureSampler();
 	TransitionImageLayout(depth_texture_.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+	LOG_INFO("Vulkan initialized successfully");
 }
 
 void Graphics::CreateInstance()
